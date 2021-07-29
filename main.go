@@ -13,19 +13,19 @@ var serverPort = 8888
 var filename = "shakespeare.txt"
 
 func main() {
-	serverAddress := IP + ":" + strconv.Itoa(serverPort)
-	udpAddr, err := net.ResolveUDPAddr("udp", serverAddress)
+
+	udpAddr, err := getUDPAddr(serverPort)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer conn.Close()
+
 	for {
 
 		data := make([]byte, 16)
@@ -35,56 +35,32 @@ func main() {
 			continue
 		}
 		go transport(addr, string(data[:len]))
-		/*
-			fmt.Println(rAddr.IP)
-			fmt.Println(rAddr.Port)
-			fmt.Println(conn.RemoteAddr())
-			fmt.Println(rAddr.Network())
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-
-			strData := string(data[:len])
-			fmt.Println("Received:", strData)
-
-			upper := strings.ToUpper(strData)
-			_, err = conn.WriteToUDP([]byte(upper), rAddr)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-
-			fmt.Println("Send:", upper)
-		*/
 	}
 }
 func transport(addr *net.UDPAddr, data string) {
-	fmt.Println(addr)
-	port, err := strconv.ParseUint(data, 10, 16)
-	if err != nil {
-		fmt.Println("Parse unsigned int error: " + err.Error())
-		return
-	}
-	if port < 1024 {
-		fmt.Println(strconv.Itoa(addr.Port) + ": the port should be 1024~65535")
-	}
+	fmt.Println("Connection from " + addr.String())
 
-	clientAddr := addr.IP.String() + ":" + strconv.Itoa(int(port))
-	conn, err := net.Dial("udp", clientAddr)
-	if err != nil {
-		fmt.Println("The connection with " + addr.IP.String() + " has error: " + err.Error())
-		return
-	}
-	fmt.Println(conn)
-
-	file, err := os.OpenFile(filename, os.O_RDONLY, 0777)
+	conn, err := DialClient(addr, data)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer file.Close()
-	content, err := ioutil.ReadAll(file)
+	clientData := make([]byte, 16)
+	fmt.Println(clientData)
+
+	udpAddr, err := getUDPAddr(0)
+	listenConn, err := net.ListenUDP("udp", udpAddr)
+	if err == nil {
+		return
+	}
+	defer listenConn.Close()
+
+	ack := "Ready to sent"
+	conn.Write([]byte(ack))
+
+	// the first re-transmission logic
+
+	content, err := ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -97,6 +73,46 @@ func transport(addr *net.UDPAddr, data string) {
 			conn.Write(content[i:])
 		}
 	}
+	return
+}
 
+func ReadFile(name string) (content []byte, err error) {
+	file, err := os.OpenFile(name, os.O_RDONLY, 0777)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+	content, err = ioutil.ReadAll(file)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return
+}
+
+func DialClient(addr *net.UDPAddr, data string) (conn net.Conn, err error) {
+	port, err := strconv.ParseUint(data, 10, 16)
+	if err != nil {
+		fmt.Println("Parse unsigned int error: " + err.Error())
+		return
+	}
+	if port < 1024 {
+		fmt.Println(strconv.Itoa(addr.Port) + ": the port should be 1024~65535")
+		return
+	}
+	clientAddr := addr.IP.String() + ":" + strconv.Itoa(int(port))
+	conn, err = net.Dial("udp", clientAddr)
+	if err != nil {
+		fmt.Println("The connection with " + addr.IP.String() + " has error: " + err.Error())
+	}
+	return
+}
+
+func ListenClient(addr *net.UDPAddr, clientData *[]byte) {
+
+}
+func getUDPAddr(port int) (udpAddr *net.UDPAddr, err error) {
+	serverAddress := IP + ":" + strconv.Itoa(port)
+	udpAddr, err = net.ResolveUDPAddr("udp", serverAddress)
 	return
 }
