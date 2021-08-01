@@ -161,7 +161,7 @@ func ListenClient(conn *net.UDPConn, clientData []byte, ch1 chan []byte) {
 	for {
 		len, _, err := conn.ReadFromUDP(clientData)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 			break
 		}
 		ch1 <- clientData[:len]
