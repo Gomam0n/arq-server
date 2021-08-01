@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -52,14 +51,14 @@ func transport(addr *net.UDPAddr, data string) {
 	var sendData []byte
 	udpAddr, err := getUDPAddr(0)
 
-	fmt.Println(udpAddr.Port, udpAddr.IP, udpAddr.Network())
-
 	listenConn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	defer listenConn.Close()
-	portUse := listenConn.LocalAddr().String()[strings.Index(listenConn.LocalAddr().String(), ":")+1:]
+	portUse := getPortFromConn(listenConn.LocalAddr().String())
+
 	var ch1 = make(chan []byte, 2)
 
 	content, err := ReadFile(filename)
@@ -72,12 +71,13 @@ func transport(addr *net.UDPAddr, data string) {
 
 	sendData = []byte(portUse)
 	conn.Write(sendData)
-	fmt.Println(conn.RemoteAddr())
+
 	fmt.Println("use port ", portUse, " to communicate with ", conn.RemoteAddr())
 
 	sequenceNumber := 0
 	i := 0
-	//timeout := true
+
+	timeout, newpac := 0, 0
 	fmt.Println(sequenceNumber, i)
 	timer := time.NewTimer(time.Millisecond * 300)
 	for {
@@ -94,7 +94,9 @@ func transport(addr *net.UDPAddr, data string) {
 			fmt.Println("reveive ", string(clientData), " from ", conn.RemoteAddr())
 			if clientData[0] == 'A' && clientData[1] == 'C' && clientData[2] == 'K' && clientData[3] == byte(sequenceNumber+'0') {
 				if i > len(content) {
-					break
+					fmt.Println("send all data to conn.RemoteAddr()")
+					fmt.Println("Packet re-transmit: ", timeout, ", total packet: ", timeout+newpac)
+					return
 				} else {
 					sendData = nil
 					sequenceNumber = 1 - sequenceNumber
@@ -105,40 +107,18 @@ func transport(addr *net.UDPAddr, data string) {
 						sendData = append(sendData, content[i:i+16]...)
 					}
 					i += 16
+					newpac++
 					conn.Write(sendData)
-					fmt.Println("send next packet to ", conn.RemoteAddr())
+					//fmt.Println("send next packet to ", conn.RemoteAddr())
 					continue
 				}
 			}
 		case <-timer.C:
-			fmt.Println(time.Now(), ":timer expired")
+			timeout++
 			conn.Write(sendData)
 			continue
 		}
 	}
-	/*
-		for{
-			if clientData[0] == 'A' &&clientData[1] == 'C' &&clientData[2] == 'K'&& clientData[3] == byte(sequenceNumber+'0') {
-				clientData[0],clientData[1],clientData[2],clientData[3] = '0','0','0','0'
-				if i>len(content){
-					break
-				}else{
-					sendData = nil
-					sequenceNumber = ^sequenceNumber
-					sendData= append(sendData,byte(sequenceNumber+'0') )
-					sendData = append(sendData,content[i:i+16]...)
-					i+=16
-					conn.Write(sendData)
-					timer.Stop()
-					timer.Reset(time.Millisecond*300)
-				}
-			}else if timeout == true{
-				conn.Write(sendData)
-				timer.Reset(time.Millisecond*300)
-			}
-
-		}
-	*/
 
 	return
 }
@@ -194,12 +174,12 @@ func getUDPAddr(port int) (udpAddr *net.UDPAddr, err error) {
 	udpAddr, err = net.ResolveUDPAddr("udp", serverAddress)
 	return
 }
-func count(cnt *int) {
-	timer := time.NewTimer(time.Millisecond)
-	for {
-		<-timer.C
-		timer.Reset(time.Millisecond)
-		*cnt++
-		fmt.Println(*cnt)
+func getPortFromConn(conn string) (port string) {
+	for i := len(conn) - 1; i >= 0; i-- {
+		if conn[i] == ':' {
+			port = conn[i:]
+			break
+		}
 	}
+	return
 }
