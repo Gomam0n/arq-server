@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var IP = "127.0.0.1"
+var IP = "0.0.0.0"
 var serverPort = 8888
 var filename = "shakespeare.txt"
 
@@ -162,9 +162,8 @@ func ListenClient(conn *net.UDPConn, clientData []byte, ch1 chan []byte) {
 		len, _, err := conn.ReadFromUDP(clientData)
 		if err != nil {
 			fmt.Println(err)
-			continue
+			break
 		}
-		fmt.Println(string(clientData[:len]))
 		ch1 <- clientData[:len]
 		clientData = make([]byte, 17)
 	}
@@ -177,7 +176,7 @@ func getUDPAddr(port int) (udpAddr *net.UDPAddr, err error) {
 func getPortFromConn(conn string) (port string) {
 	for i := len(conn) - 1; i >= 0; i-- {
 		if conn[i] == ':' {
-			port = conn[i:]
+			port = conn[i+1:]
 			break
 		}
 	}
